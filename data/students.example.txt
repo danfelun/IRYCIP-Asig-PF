@@ -1,0 +1,3 @@
+La matriz real NO se incluye en el repositorio para proteger los datos personales.
+Encabezados esperados en la primera hoja:
+Nombre | Correo Institucional | Grupo

@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Administración · ORIGEN{% endblock %}
+{% block content %}
+<div class="mission-head">
+  <div>
+    <div class="eyebrow">PANEL DOCENTE</div>
+    <h2>Asignaciones del proyecto final</h2>
+    <p class="muted" id="assignment-counter">{{ assigned_count }} de {{ total_groups }} grupos ya tienen proyecto.</p>
+    <div class="live-indicator"><span class="live-dot"></span><span id="live-status">Actualización automática activa</span></div>
+  </div>
+  <div class="actions compact">
+    <a class="btn primary" href="{{ url_for('main.export_pdf') }}">Exportar PDF</a>
+    <form action="{{ url_for('main.sync_matrix') }}" method="post">
+      <button class="btn ghost" type="submit" title="Vuelve a leer EstudiantesGrupos.xlsx sin reiniciar la aplicación">Sincronizar matriz</button>
+    </form>
+    <form action="{{ url_for('main.admin_logout') }}" method="post">
+      <button class="btn ghost" type="submit">Salir</button>
+    </form>
+  </div>
+</div>
+
+<div class="progress" aria-label="Progreso de asignaciones">
+  <span id="assignment-progress" style="width: {{ ((assigned_count / total_groups * 100) if total_groups else 0)|round(0) }}%"></span>
+</div>
+
+<div class="admin-summary">
+  <div><span>GRUPOS ACTIVOS</span><strong id="total-groups">{{ total_groups }}</strong></div>
+  <div><span>ASIGNADOS</span><strong id="assigned-groups">{{ assigned_count }}</strong></div>
+  <div><span>PENDIENTES</span><strong id="pending-groups">{{ total_groups - assigned_count }}</strong></div>
+</div>
+
+<div class="table-wrap">
+  <table class="admin-table">
+    <thead>
+      <tr><th>Grupo</th><th>Integrantes</th><th>Estado</th><th>Tema</th><th>Asignado por</th><th>Fecha</th></tr>
+    </thead>
+    <tbody id="assignment-body">
+      {% for item in groups %}
+      <tr data-group="{{ item.group_no }}">
+        <td><span class="group-chip">{{ item.group_no }}</span></td>
+        <td class="members-cell">{% for m in item.members %}<div>{{ m['name'].title() }}</div>{% endfor %}</td>
+        <td class="status-cell">{% if item.assignment %}<span class="status ok">ASIGNADO</span>{% else %}<span class="status pending">PENDIENTE</span>{% endif %}</td>
+        <td class="topic-cell">{% if item.assignment %}<strong>{{ item.assignment['title'] }}</strong><small>{{ item.assignment['platform'] }}</small>{% else %}—{% endif %}</td>
+        <td class="claimed-cell">{% if item.assignment %}{{ item.assignment['claimed_by_name'].title() }}{% else %}—{% endif %}</td>
+        <td class="date-cell">{% if item.assignment %}{{ item.assignment['assigned_at'].replace('T',' ')[:19] }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+(() => {
+  const endpoint = {{ url_for('main.admin_status')|tojson }};
+  const loginUrl = {{ url_for('main.admin_login')|tojson }};
+  const initialGroups = {{ total_groups|int }};
+  let knownGroupCount = initialGroups;
+  let lastAssigned = {{ assigned_count|int }};
+
+  const counter = document.getElementById('assignment-counter');
+  const progress = document.getElementById('assignment-progress');
+  const liveStatus = document.getElementById('live-status');
+  const totalGroups = document.getElementById('total-groups');
+  const assignedGroups = document.getElementById('assigned-groups');
+  const pendingGroups = document.getElementById('pending-groups');
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  }
+
+  function updateRow(group) {
+    const row = document.querySelector(`tr[data-group="${group.group_no}"]`);
+    if (!row) return false;
+    row.querySelector('.members-cell').innerHTML = group.members.map(n => `<div>${escapeHtml(n)}</div>`).join('');
+    row.querySelector('.status-cell').innerHTML = group.assigned
+      ? '<span class="status ok">ASIGNADO</span>'
+      : '<span class="status pending">PENDIENTE</span>';
+    row.querySelector('.topic-cell').innerHTML = group.assigned
+      ? `<strong>${escapeHtml(group.topic)}</strong><small>${escapeHtml(group.platform)}</small>`
+      : '—';
+    row.querySelector('.claimed-cell').textContent = group.assigned ? group.claimed_by : '—';
+    row.querySelector('.date-cell').textContent = group.assigned ? group.assigned_at : '—';
+    return true;
+  }
+
+  async function refreshStatus() {
+    try {
+      const response = await fetch(endpoint, {cache: 'no-store', credentials: 'same-origin'});
+      if (response.status === 401) {
+        liveStatus.textContent = 'Sesión docente vencida. Redirigiendo…';
+        setTimeout(() => window.location.assign(loginUrl), 800);
+        return;
+      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+
+      // Si el docente sincronizó una matriz con más/menos grupos, reconstruimos
+      // la vista mediante una recarga normal. La sesión administrativa se conserva.
+      if (data.total_groups !== knownGroupCount || data.groups.some(g => !document.querySelector(`tr[data-group="${g.group_no}"]`))) {
+        window.location.reload();
+        return;
+      }
+
+      data.groups.forEach(updateRow);
+      counter.textContent = `${data.assigned_count} de ${data.total_groups} grupos ya tienen proyecto.`;
+      progress.style.width = `${data.total_groups ? (data.assigned_count / data.total_groups) * 100 : 0}%`;
+      totalGroups.textContent = data.total_groups;
+      assignedGroups.textContent = data.assigned_count;
+      pendingGroups.textContent = data.total_groups - data.assigned_count;
+
+      if (data.assigned_count > lastAssigned) {
+        liveStatus.textContent = 'Nueva asignación registrada · panel actualizado';
+        document.body.classList.add('new-assignment-flash');
+        setTimeout(() => document.body.classList.remove('new-assignment-flash'), 1200);
+      } else {
+        liveStatus.textContent = `Actualizado ${new Date().toLocaleTimeString('es-CO')}`;
+      }
+      lastAssigned = data.assigned_count;
+    } catch (error) {
+      liveStatus.textContent = 'No fue posible actualizar en vivo; se reintentará automáticamente';
+    }
+  }
+
+  refreshStatus();
+  setInterval(refreshStatus, 5000);
+})();
+</script>
+{% endblock %}

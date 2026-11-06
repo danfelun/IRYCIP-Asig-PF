@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Panel docente · ORIGEN{% endblock %}
+{% block content %}
+<div class="center-card">
+  <div class="eyebrow">CONTROL DOCENTE</div>
+  <h2>Panel de administración</h2>
+  <form method="post" class="form-stack">
+    <label>Correo</label><input type="email" name="email" required>
+    <label>Contraseña</label><input type="password" name="password" required>
+    <button class="btn primary full" type="submit">Ingresar</button>
+  </form>
+</div>
+{% endblock %}

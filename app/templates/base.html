@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}PROYECTO ORIGEN{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('main.index') }}">
+      <span class="brand-main">ORIGEN</span>
+      <span class="brand-sub">REDES QUE CONECTAN CONOCIMIENTO</span>
+    </a>
+    <div class="top-actions">
+      {% if session.get('student_email') %}<span class="badge">GRUPO {{ session.get('group_no') }}</span>{% endif %}
+      {% if session.get('admin') %}<span class="badge admin-badge">DOCENTE</span>{% endif %}
+    </div>
+  </header>
+  <main class="shell">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>PROYECTO ORIGEN · INTERNET: Redes y Comunicaciones IP</footer>
+</body>
+</html>

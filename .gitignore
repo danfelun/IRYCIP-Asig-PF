@@ -1,0 +1,23 @@
+# Datos privados / personales
+EstudiantesGrupos.xlsx
+data/*.xlsx
+data/*.xls
+data/*.csv
+instance/*.db
+instance/*.sqlite*
+
+# Variables y secretos
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# SO / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

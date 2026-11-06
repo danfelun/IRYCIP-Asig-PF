@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Asignación Proyecto Final · ORIGEN{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="eyebrow">PROYECTO FINAL · CAPA DE APLICACIÓN</div>
+  <h1>Tu misión en el <span>DataCenter</span> está por definirse.</h1>
+  <p>Cada grupo recibirá un servicio que deberá desplegar, integrar y validar dentro de la VLAN 40 del escenario final.</p>
+  <div class="actions">
+    <a class="btn primary" href="{{ url_for('main.login') }}">Ingresar como estudiante</a>
+    <a class="btn ghost" href="{{ url_for('main.admin_login') }}">Panel docente</a>
+  </div>
+</section>
+<section class="three-grid">
+  <article class="info-card"><div class="num">01</div><h3>Identificación</h3><p>Ingresa únicamente con tu correo institucional registrado en la matriz del curso.</p></article>
+  <article class="info-card"><div class="num">02</div><h3>Asignación</h3><p>El primer integrante que confirme la selección define el tema para todo su grupo.</p></article>
+  <article class="info-card"><div class="num">03</div><h3>Misión</h3><p>El resultado queda registrado y tus compañeros verán exactamente el mismo proyecto.</p></article>
+</section>
+{% endblock %}

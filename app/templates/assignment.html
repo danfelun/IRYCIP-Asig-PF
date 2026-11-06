@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Asignación · Grupo {{ session.get('group_no') }}{% endblock %}
+{% block content %}
+<div class="mission-head">
+  <div><div class="eyebrow">GRUPO {{ session.get('group_no') }}</div><h2>{{ session.get('student_name').title() }}</h2></div>
+  <form action="{{ url_for('main.logout') }}" method="post"><button class="btn ghost small">Salir</button></form>
+</div>
+{% if assignment %}
+<section class="result-card {% if request.args.get('reveal') %}reveal{% endif %}">
+  <div class="result-label">TEMA ASIGNADO</div>
+  <h1>{{ assignment['title'] }}</h1>
+  <p class="lead">{{ assignment['summary'] }}</p>
+  <div class="spec-grid">
+    <div><span>Plataforma</span><strong>{{ assignment['platform'] }}</strong></div>
+    <div><span>Protocolos</span><strong>{{ assignment['protocols'] }}</strong></div>
+    <div><span>Enfoque de red</span><strong>{{ assignment['network'] }}</strong></div>
+  </div>
+  <div class="lock-note">Asignación registrada para todo el Grupo {{ session.get('group_no') }}. Ya no puede realizarse un nuevo sorteo.</div>
+</section>
+{% else %}
+<section class="draw-card">
+  <div class="orb">?</div>
+  <h2>Una sola oportunidad.</h2>
+  <p>Al confirmar, el sistema asignará el proyecto para <strong>todo el Grupo {{ session.get('group_no') }}</strong>. Tus compañeros solo podrán consultar el resultado.</p>
+  <form action="{{ url_for('main.draw_assignment') }}" method="post">
+    <button class="btn primary mega" type="submit">Asignar proyecto</button>
+  </form>
+  <p class="micro">La asignación es definitiva y quedará registrada con fecha y responsable.</p>
+</section>
+{% endif %}
+{% endblock %}

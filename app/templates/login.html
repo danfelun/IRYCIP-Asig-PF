@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Ingreso estudiantes · ORIGEN{% endblock %}
+{% block content %}
+<div class="center-card">
+  <div class="eyebrow">ACCESO ESTUDIANTES</div>
+  <h2>Identifica tu grupo</h2>
+  <p class="muted">Usa el correo institucional registrado por el docente. No se requiere contraseña.</p>
+  <form method="post" class="form-stack">
+    <label>Correo institucional</label>
+    <input type="email" name="email" value="{{ email or '' }}" placeholder="nombre@estudiantesunibague.edu.co" required autofocus>
+    <button class="btn primary full" type="submit">Continuar</button>
+  </form>
+  <p class="micro">El acceso permite identificar tu grupo y consultar o realizar una única asignación.</p>
+</div>
+{% endblock %}
