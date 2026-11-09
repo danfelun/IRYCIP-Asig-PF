@@ -11,6 +11,8 @@ Aplicación web para realizar la asignación única de temas del proyecto final 
 - Los temas se distribuyen primero sin repetición; si existen más grupos que temas disponibles, el sistema comienza a reutilizar los temas de forma equilibrada.
 - Las asignaciones privadas definidas en `.env` se reservan y no participan en el sorteo general.
 - Panel docente protegido con correo y contraseña.
+- **Asignación manual desde el panel docente** para grupos que no participaron en el sorteo.
+- **Creación de nuevos temas desde el panel docente**, disponibles de inmediato para futuras asignaciones.
 - **Panel docente con actualización automática cada 5 segundos**, sin recargar manualmente la página.
 - La sesión administrativa se conserva al actualizar el navegador y también al probar el flujo estudiantil desde el mismo navegador.
 - El número de grupos **no está codificado**: se obtiene automáticamente de la matriz activa.
@@ -116,6 +118,7 @@ Edite `.env` y cambie obligatoriamente:
 
 ```text
 SECRET_KEY=
+ADMIN_NAME=Daniel Palomo
 ADMIN_EMAIL=
 ADMIN_PASSWORD=
 ```
@@ -166,8 +169,38 @@ http://IP_SERVIDOR:8080/admin/login
 5. A partir de ese momento, cualquier integrante del grupo ve el mismo resultado.
 6. El docente observa el cambio automáticamente desde su panel.
 7. El docente puede descargar el consolidado en PDF.
+8. Si un grupo no participa, el docente puede asignarle manualmente un tema pendiente desde el panel.
+9. El docente también puede incorporar nuevos temas al banco sin modificar el código ni reiniciar el contenedor.
 
 La elección se realiza dentro de una transacción de base de datos para impedir que dos estudiantes del mismo grupo obtengan temas diferentes si acceden casi simultáneamente.
+
+## Gestión docente de asignaciones
+
+El panel incluye una sección **Asignación manual**. Solo aparecen como candidatos los grupos activos que todavía están pendientes. El docente selecciona el grupo y el tema, y la aplicación registra:
+
+- grupo asignado;
+- tema;
+- nombre del docente configurado en `ADMIN_NAME`;
+- fecha y hora;
+- método de asignación `manual`.
+
+Las asignaciones realizadas por estudiantes continúan registrándose como método `student`. Esta diferencia se muestra en el panel y queda disponible para el reporte.
+
+Los temas reservados mediante `ASSIGNMENT_OVERRIDES` siguen protegidos y no pueden asignarse manualmente a otro grupo distinto del configurado.
+
+## Agregar temas desde el panel
+
+En **Banco de temas** el docente puede registrar un tema nuevo indicando:
+
+- título;
+- plataforma;
+- protocolos;
+- enfoque de red;
+- descripción breve.
+
+El tema queda guardado en SQLite y participa inmediatamente en las asignaciones automáticas posteriores. No es necesario editar `topics.py`, reconstruir la imagen ni reiniciar el servicio.
+
+Los temas creados desde el panel se conservan en `instance/asignaciones.db`; por tanto, no elimine la base si desea conservarlos.
 
 ## Más grupos que temas
 
@@ -215,7 +248,9 @@ La versión actual incluye una migración automática de la base de datos anteri
 
 - retirar el límite fijo de 12 grupos;
 - permitir reutilización equilibrada de temas cuando existan más grupos que temas;
-- incorporar el estado activo/inactivo de estudiantes.
+- incorporar el estado activo/inactivo de estudiantes;
+- registrar si una asignación fue realizada por un estudiante o por el docente;
+- permitir temas personalizados persistentes creados desde el panel.
 
 Antes de actualizar una instalación utilizada en producción académica se recomienda respaldar la base:
 

@@ -25,6 +25,7 @@ class AppTest(unittest.TestCase):
             "STUDENTS_XLSX": "",
             "ADMIN_EMAIL": "admin@example.edu",
             "ADMIN_PASSWORD": "secret",
+            "ADMIN_NAME": "Daniel Palomo",
             "ASSIGNMENT_OVERRIDES": "10:G10-FIXED",
         })
         import_students_xlsx(self.xlsx, self.db_path)
@@ -107,6 +108,56 @@ class AppTest(unittest.TestCase):
         active = db.execute("select count(*) c from students where active=1").fetchone()["c"]
         db.close()
         self.assertEqual(active, 1)
+
+    def test_admin_can_assign_topic_manually(self):
+        self.client.post("/admin/login", data={"email": "admin@example.edu", "password": "secret"})
+        response = self.client.post(
+            "/admin/asignar-manual",
+            data={"group_no": "1", "topic_code": "WP"},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        db = connect_db(self.db_path)
+        row = db.execute(
+            "select topic_code,claimed_by_name,assignment_method from assignments where group_no=1"
+        ).fetchone()
+        db.close()
+        self.assertEqual(row["topic_code"], "WP")
+        self.assertEqual(row["claimed_by_name"], "Daniel Palomo")
+        self.assertEqual(row["assignment_method"], "manual")
+
+    def test_admin_can_add_topic_to_draw_pool(self):
+        self.client.post("/admin/login", data={"email": "admin@example.edu", "password": "secret"})
+        response = self.client.post(
+            "/admin/temas/nuevo",
+            data={
+                "title": "Servidor NTP en Linux",
+                "platform": "Linux VM",
+                "protocols": "NTP UDP 123",
+                "network": "Dual Stack",
+                "summary": "Implementar y validar sincronizacion horaria.",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        db = connect_db(self.db_path)
+        row = db.execute(
+            "select code,custom,active from topics where title=?", ("Servidor NTP en Linux",)
+        ).fetchone()
+        db.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["custom"], 1)
+        self.assertEqual(row["active"], 1)
+
+    def test_manual_assignment_cannot_use_reserved_topic_for_other_group(self):
+        self.client.post("/admin/login", data={"email": "admin@example.edu", "password": "secret"})
+        self.client.post(
+            "/admin/asignar-manual", data={"group_no": "1", "topic_code": "G10-FIXED"}
+        )
+        db = connect_db(self.db_path)
+        row = db.execute("select 1 from assignments where group_no=1").fetchone()
+        db.close()
+        self.assertIsNone(row)
 
 
 if __name__ == "__main__":

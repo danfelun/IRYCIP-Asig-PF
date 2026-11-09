@@ -146,7 +146,7 @@ def draw_assignment():
         else:
             available_codes = [
                 r["code"]
-                for r in db.execute("SELECT code FROM topics ORDER BY code").fetchall()
+                for r in db.execute("SELECT code FROM topics WHERE active=1 ORDER BY code").fetchall()
                 if r["code"] not in reserved_codes
             ]
             if not available_codes:
@@ -163,8 +163,8 @@ def draw_assignment():
             selected = secrets.choice(candidates)
 
         db.execute(
-            """INSERT INTO assignments(group_no,topic_code,claimed_by_email,claimed_by_name,assigned_at)
-               VALUES(?,?,?,?,?)""",
+            """INSERT INTO assignments(group_no,topic_code,claimed_by_email,claimed_by_name,assigned_at,assignment_method)
+               VALUES(?,?,?,?,?, 'student')""",
             (group_no, selected, email, name, utc_now_iso()),
         )
         db.execute("COMMIT")
@@ -235,6 +235,7 @@ def _admin_payload():
             "platform": a["platform"] if a else "",
             "claimed_by": a["claimed_by_name"].title() if a else "",
             "assigned_at": _format_assignment_time(a["assigned_at"]) if a else "",
+            "assignment_method": a["assignment_method"] if a else "",
         })
     return {
         "assigned_count": assigned_count,
@@ -246,10 +247,25 @@ def _admin_payload():
 @bp.get("/admin")
 @admin_required
 def admin_dashboard():
+    db = get_db()
     data = _admin_payload()
+    groups = get_admin_rows(db)
+    pending_groups = [g for g in groups if not g["assignment"]]
+    topics = db.execute(
+        "SELECT * FROM topics WHERE active=1 ORDER BY custom, title"
+    ).fetchall()
+    usage = {
+        r["topic_code"]: r["c"]
+        for r in db.execute(
+            "SELECT topic_code, COUNT(*) AS c FROM assignments GROUP BY topic_code"
+        ).fetchall()
+    }
     return render_template(
         "admin.html",
-        groups=get_admin_rows(get_db()),
+        groups=groups,
+        pending_groups=pending_groups,
+        topics=topics,
+        topic_usage=usage,
         assigned_count=data["assigned_count"],
         total_groups=data["total_groups"],
     )
@@ -262,6 +278,93 @@ def admin_status():
     payload = _admin_payload()
     payload["ok"] = True
     return jsonify(payload)
+
+
+@bp.post("/admin/asignar-manual")
+@admin_required
+def manual_assignment():
+    db = get_db()
+    try:
+        group_no = int(request.form.get("group_no", "0"))
+    except ValueError:
+        group_no = 0
+    topic_code = request.form.get("topic_code", "").strip()
+
+    group_exists = db.execute(
+        "SELECT 1 FROM students WHERE active=1 AND group_no=? LIMIT 1", (group_no,)
+    ).fetchone()
+    topic = db.execute(
+        "SELECT * FROM topics WHERE code=? AND active=1", (topic_code,)
+    ).fetchone()
+    if not group_exists:
+        flash("El grupo seleccionado no existe en la matriz activa.", "error")
+        return redirect(url_for("main.admin_dashboard"))
+    if not topic:
+        flash("El tema seleccionado no está disponible.", "error")
+        return redirect(url_for("main.admin_dashboard"))
+
+    overrides = assignment_overrides()
+    reserved_codes = set(overrides.values())
+    if topic_code in reserved_codes and overrides.get(group_no) != topic_code:
+        flash("Ese tema está reservado para una asignación especial y no puede asignarse a otro grupo.", "error")
+        return redirect(url_for("main.admin_dashboard"))
+
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        existing = db.execute(
+            "SELECT 1 FROM assignments WHERE group_no=?", (group_no,)
+        ).fetchone()
+        if existing:
+            db.execute("ROLLBACK")
+            flash("El grupo ya cuenta con un tema asignado.", "info")
+            return redirect(url_for("main.admin_dashboard"))
+
+        admin_email = current_app.config["ADMIN_EMAIL"].lower()
+        admin_name = current_app.config.get("ADMIN_NAME", "Docente")
+        db.execute(
+            """INSERT INTO assignments(
+                   group_no,topic_code,claimed_by_email,claimed_by_name,assigned_at,assignment_method
+               ) VALUES(?,?,?,?,?,'manual')""",
+            (group_no, topic_code, admin_email, admin_name, utc_now_iso()),
+        )
+        db.execute("COMMIT")
+    except Exception:
+        db.execute("ROLLBACK")
+        raise
+
+    flash(f"Tema asignado manualmente al Grupo {group_no}.", "info")
+    return redirect(url_for("main.admin_dashboard"))
+
+
+@bp.post("/admin/temas/nuevo")
+@admin_required
+def add_topic():
+    db = get_db()
+    title = request.form.get("title", "").strip()
+    platform = request.form.get("platform", "").strip()
+    protocols = request.form.get("protocols", "").strip()
+    network = request.form.get("network", "").strip()
+    summary = request.form.get("summary", "").strip()
+
+    if not all([title, platform, protocols, network, summary]):
+        flash("Para crear un tema debes completar todos los campos.", "error")
+        return redirect(url_for("main.admin_dashboard") + "#gestion-temas")
+
+    duplicate = db.execute(
+        "SELECT 1 FROM topics WHERE lower(title)=lower(?) LIMIT 1", (title,)
+    ).fetchone()
+    if duplicate:
+        flash("Ya existe un tema con ese nombre.", "error")
+        return redirect(url_for("main.admin_dashboard") + "#gestion-temas")
+
+    code = "CUSTOM-" + secrets.token_hex(4).upper()
+    db.execute(
+        """INSERT INTO topics(code,title,platform,protocols,network,summary,active,custom)
+           VALUES(?,?,?,?,?,?,1,1)""",
+        (code, title, platform, protocols, network, summary),
+    )
+    flash(f"Nuevo tema agregado al sorteo: {title}.", "info")
+    return redirect(url_for("main.admin_dashboard") + "#gestion-temas")
 
 
 @bp.post("/admin/sincronizar-matriz")

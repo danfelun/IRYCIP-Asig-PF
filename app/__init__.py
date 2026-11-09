@@ -12,6 +12,7 @@ def create_app(test_config=None):
         STUDENTS_XLSX=os.environ.get("STUDENTS_XLSX", ""),
         ADMIN_EMAIL=os.environ.get("ADMIN_EMAIL", "docente@unibague.edu.co"),
         ADMIN_PASSWORD=os.environ.get("ADMIN_PASSWORD", "cambie-esta-clave"),
+        ADMIN_NAME=os.environ.get("ADMIN_NAME", "Daniel Palomo"),
         ASSIGNMENT_OVERRIDES=os.environ.get("ASSIGNMENT_OVERRIDES", ""),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",

@@ -29,6 +29,80 @@
   <div><span>PENDIENTES</span><strong id="pending-groups">{{ total_groups - assigned_count }}</strong></div>
 </div>
 
+<section class="admin-tools" id="gestion-docente">
+  <div class="admin-tool-card">
+    <div class="tool-title-row">
+      <div>
+        <div class="eyebrow">ASIGNACIÓN MANUAL</div>
+        <h3>Asignar tema a un grupo pendiente</h3>
+      </div>
+      <span class="tool-icon">↗</span>
+    </div>
+    <p class="muted">Útil para grupos ausentes o casos en los que el docente deba completar la asignación.</p>
+    {% if pending_groups %}
+    <form class="admin-form-grid" action="{{ url_for('main.manual_assignment') }}" method="post">
+      <label>Grupo pendiente
+        <select name="group_no" required>
+          <option value="">Seleccione...</option>
+          {% for item in pending_groups %}
+          <option value="{{ item.group_no }}">Grupo {{ item.group_no }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Tema
+        <select name="topic_code" required>
+          <option value="">Seleccione...</option>
+          {% for topic in topics %}
+            {% set used = topic_usage.get(topic['code'], 0) %}
+            <option value="{{ topic['code'] }}">{{ topic['title'] }}{% if used %} · usado {{ used }} vez/veces{% else %} · disponible{% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="btn primary" type="submit">Asignar manualmente</button>
+    </form>
+    {% else %}
+    <div class="tool-success">Todos los grupos activos ya cuentan con tema asignado.</div>
+    {% endif %}
+  </div>
+
+  <div class="admin-tool-card" id="gestion-temas">
+    <div class="tool-title-row">
+      <div>
+        <div class="eyebrow">BANCO DE TEMAS</div>
+        <h3>Agregar un nuevo tema al sorteo</h3>
+      </div>
+      <span class="tool-icon">＋</span>
+    </div>
+    <p class="muted">El nuevo tema queda disponible inmediatamente para las asignaciones automáticas y manuales pendientes.</p>
+    <form class="topic-form" action="{{ url_for('main.add_topic') }}" method="post">
+      <label>Título del tema
+        <input name="title" required placeholder="Ej. Servidor NTP en Linux">
+      </label>
+      <div class="two-cols">
+        <label>Plataforma
+          <input name="platform" required placeholder="Linux · VM o contenedor">
+        </label>
+        <label>Protocolos
+          <input name="protocols" required placeholder="NTP · UDP 123">
+        </label>
+      </div>
+      <label>Enfoque de red
+        <input name="network" required placeholder="IPv4 / IPv6 / Dual Stack">
+      </label>
+      <label>Descripción breve
+        <textarea name="summary" required rows="3" placeholder="Qué debe implementar y demostrar el grupo..."></textarea>
+      </label>
+      <button class="btn ghost" type="submit">Agregar al banco de temas</button>
+    </form>
+  </div>
+</section>
+
+<div class="table-section-head">
+  <div>
+    <div class="eyebrow">CONSOLIDADO</div>
+    <h3>Estado de los grupos</h3>
+  </div>
+</div>
 <div class="table-wrap">
   <table class="admin-table">
     <thead>
@@ -41,7 +115,12 @@
         <td class="members-cell">{% for m in item.members %}<div>{{ m['name'].title() }}</div>{% endfor %}</td>
         <td class="status-cell">{% if item.assignment %}<span class="status ok">ASIGNADO</span>{% else %}<span class="status pending">PENDIENTE</span>{% endif %}</td>
         <td class="topic-cell">{% if item.assignment %}<strong>{{ item.assignment['title'] }}</strong><small>{{ item.assignment['platform'] }}</small>{% else %}—{% endif %}</td>
-        <td class="claimed-cell">{% if item.assignment %}{{ item.assignment['claimed_by_name'].title() }}{% else %}—{% endif %}</td>
+        <td class="claimed-cell">
+          {% if item.assignment %}
+            {{ item.assignment['claimed_by_name'].title() }}
+            {% if item.assignment['assignment_method'] == 'manual' %}<small class="manual-tag">Asignación docente</small>{% endif %}
+          {% else %}—{% endif %}
+        </td>
         <td class="date-cell">{% if item.assignment %}{{ item.assignment['assigned_at'].replace('T',' ')[:19] }}{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
@@ -78,7 +157,9 @@
     row.querySelector('.topic-cell').innerHTML = group.assigned
       ? `<strong>${escapeHtml(group.topic)}</strong><small>${escapeHtml(group.platform)}</small>`
       : '—';
-    row.querySelector('.claimed-cell').textContent = group.assigned ? group.claimed_by : '—';
+    row.querySelector('.claimed-cell').innerHTML = group.assigned
+      ? `${escapeHtml(group.claimed_by)}${group.assignment_method === 'manual' ? '<small class="manual-tag">Asignación docente</small>' : ''}`
+      : '—';
     row.querySelector('.date-cell').textContent = group.assigned ? group.assigned_at : '—';
     return true;
   }
@@ -94,8 +175,6 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
 
-      // Si el docente sincronizó una matriz con más/menos grupos, reconstruimos
-      // la vista mediante una recarga normal. La sesión administrativa se conserva.
       if (data.total_groups !== knownGroupCount || data.groups.some(g => !document.querySelector(`tr[data-group="${g.group_no}"]`))) {
         window.location.reload();
         return;
@@ -109,9 +188,10 @@
       pendingGroups.textContent = data.total_groups - data.assigned_count;
 
       if (data.assigned_count > lastAssigned) {
-        liveStatus.textContent = 'Nueva asignación registrada · panel actualizado';
+        liveStatus.textContent = 'Nueva asignación registrada · actualizando controles…';
         document.body.classList.add('new-assignment-flash');
-        setTimeout(() => document.body.classList.remove('new-assignment-flash'), 1200);
+        setTimeout(() => window.location.reload(), 900);
+        return;
       } else {
         liveStatus.textContent = `Actualizado ${new Date().toLocaleTimeString('es-CO')}`;
       }
